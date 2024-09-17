@@ -1,0 +1,71 @@
+name: Bug report
+description: Found a bug? Report it here!
+title: '[Bug] '
+body:
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please make sure all of the following applies to your issue.
+      options:
+        - label: I've checked issues to see if my bug has been reported yet.
+          required: true
+        - label: I'm reporting a Plugin software bug, not a user.
+          required: true
+        - label: I've provided as much info/evidence as I can.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What Plugin version did you use when you encountered the bug?
+      placeholder: 1.0.0, 1.0.1, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: bug-desc
+    attributes:
+      label: Bug description
+      description: Please provide a clear and concise description of what the bug is.
+      placeholder: e.g. "When running u!help, I get an error in the console saying 'list index out of range'."
+    validations:
+      required: true
+  - type: textarea
+    id: bug-repro
+    attributes:
+      label: Reproduction steps
+      description: What should we do to reproduce the bug?
+      placeholder: e.g. 1. Run u!help 2. Click on any extension 3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: bug-expected
+    attributes:
+      label: Expected behavior
+      description: What should've happened instead?
+    validations:
+      required: true
+  - type: input
+    id: plugins
+    attributes:
+      label: Plugins
+      description: What other plugins were you using at the time?
+      placeholder: RaidGuard, Revolt Support, etc.
+  - type: checkboxes
+    id: modified
+    attributes:
+      label: Modified instance
+      description: Are you using a modified version of the Plugin?
+      options:
+        - label: Yes, I'm using a modified version of the Plugin.
+          required: false
+  - type: input
+    id: modified-repo
+    attributes:
+      label: Modified Plugin repository
+      description: If you're using a modified version of the plugin, please provide its repository here. This is only required if you've selected the checkbox above.
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If you have screenshots of the bug, please attach them here.
