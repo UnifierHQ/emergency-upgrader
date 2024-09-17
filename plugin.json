@@ -1,15 +1,15 @@
 {
-  "id": "template",
-  "name": "Plugin Template",
-  "description": "This is a template for Unifier plugins.",
+  "id": "eupgrader",
+  "name": "Emergency Upgrader",
+  "description": "Emergency upgrader for v2 ",
   "version": "v1.0.0",
   "release": 0,
-  "minimum": 36,
+  "minimum": 49,
   "services": [],
   "requirements": [],
   "shutdown": false,
   "modules": [
-    "template.py"
+    "eupgrader.py"
   ],
   "utils": [
   ]
