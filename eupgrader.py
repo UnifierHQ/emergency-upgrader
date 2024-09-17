@@ -120,6 +120,12 @@ class EmergencyUpgrader(commands.Cog):
         if not ctx.author.id == self.bot.config['owner']:
             return
 
+        with open('plugins/system.json', 'r') as file:
+            current = json.load(file)
+
+        if current['release'] >= 75:
+            return await ctx.send('You\'re on a patched version. Emergency Upgrader is not needed.')
+
         selector = language.get_selector(ctx)
 
         if self.bot.update:
