@@ -126,10 +126,14 @@ class EmergencyUpgrader(commands.Cog):
         if current['release'] >= 75:
             return await ctx.send('You\'re on a patched version. Emergency Upgrader is not needed.')
 
-        selector = language.get_selector(ctx)
-
-        if self.bot.update:
-            return await ctx.send(selector.rawget('disabled','sysmgr.reload'))
+        if os.name == "win32":
+            embed = nextcord.Embed(
+                title=f'{self.bot.ui_emojis.error} Can\'t upgrade Unifier',
+                description=('Unifier cannot upgrade itself on Windows. Please use an OS with the bash console (Linux/'+
+                             'macOS/etc).'),
+                color=self.bot.colors.error
+            )
+            return await ctx.send(embed=embed)
 
         args = args.split(' ')
         force = False
@@ -146,16 +150,16 @@ class EmergencyUpgrader(commands.Cog):
 
         if plugin=='system':
             embed = nextcord.Embed(
-                title=f'{self.bot.ui_emojis.install} {selector.get("checking_title")}',
-                description=selector.get('checking_body')
+                title=f'{self.bot.ui_emojis.install} Checking for upgrades...',
+                description='Getting latest version from remote'
             )
             msg = await ctx.send(embed=embed)
             available = []
             try:
-                await self.bot.loop.run_in_executor(None, lambda: shutil.rmtree('update_check'))
+                os.system('rm -rf ' + os.getcwd() + '/update_check')
                 await self.bot.loop.run_in_executor(None, lambda: os.system(
                     'git clone --branch ' + self.bot.config['branch'] + ' ' + self.bot.config[
-                        'check_endpoint'] + ' update_check'))
+                        'check_endpoint'] + ' ' + os.getcwd() + '/update_check'))
                 with open('plugins/system.json', 'r') as file:
                     current = json.load(file)
                 with open('update_check/update.json', 'r') as file:
@@ -175,13 +179,13 @@ class EmergencyUpgrader(commands.Cog):
                     index += 1
                 update_available = len(available) >= 1
             except:
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("checkfail_title")}'
-                embed.description = selector.get("checkfail_body")
+                embed.title = f'{self.bot.ui_emojis.error} Failed to check for updates'
+                embed.description = 'Could not find a valid update.json file on remote'
                 embed.colour = self.bot.colors.error
                 return await msg.edit(embed=embed)
             if not update_available:
-                embed.title = f'{self.bot.ui_emojis.success} {selector.get("noupdates_title")}'
-                embed.description = selector.get("noupdates_body")
+                embed.title = f'{self.bot.ui_emojis.success} No updates available'
+                embed.description = 'Unifier is up-to-date.'
                 embed.colour = self.bot.colors.success
                 return await msg.edit(embed=embed)
             selected = 0
@@ -191,10 +195,8 @@ class EmergencyUpgrader(commands.Cog):
                 version = available[selected][0]
                 legacy = available[selected][3] > -1
                 reboot = available[selected][4]
-                embed.title = f'{self.bot.ui_emojis.install} {selector.get("available_title")}'
-                embed.description = selector.fget('available_body',values={
-                    'current_ver':current['version'],'current_rel':current['release'],'new_ver':version,'new_rel':release
-                })
+                embed.title = f'{self.bot.ui_emojis.install} Update available'
+                embed.description = f'An update is available for Unifier!\n\nCurrent version: {current["version"]} (`{current["release"]}`)\nNew version: {version} (`{release}`)'
                 embed.remove_footer()
                 embed.colour = 0xffcc00
                 if legacy:
@@ -203,9 +205,9 @@ class EmergencyUpgrader(commands.Cog):
                 else:
                     should_reboot = reboot >= current['release']
                 if should_reboot:
-                    embed.set_footer(text=selector.get("reboot_required"))
+                    embed.set_footer(text='The bot will need to reboot to apply the new update.')
                 selection = nextcord.ui.StringSelect(
-                    placeholder=selector.get("version"),
+                    placeholder='Select version...',
                     max_values=1,
                     min_values=1,
                     custom_id='selection',
@@ -222,15 +224,15 @@ class EmergencyUpgrader(commands.Cog):
                     index += 1
                 btns = ui.ActionRow(
                     nextcord.ui.Button(
-                        style=nextcord.ButtonStyle.green, label=selector.get("upgrade"), custom_id=f'accept',
+                        style=nextcord.ButtonStyle.green, label='Upgrade', custom_id=f'accept',
                         disabled=False
                     ),
                     nextcord.ui.Button(
-                        style=nextcord.ButtonStyle.gray, label=selector.rawget('nevermind','sysmgr.install'), custom_id=f'reject',
+                        style=nextcord.ButtonStyle.gray, label='Nevermind', custom_id=f'reject',
                         disabled=False
                     ),
                     nextcord.ui.Button(
-                        style=nextcord.ButtonStyle.link, label=selector.get("moreinfo"),
+                        style=nextcord.ButtonStyle.link, label='More info',
                         url=f'https://github.com/UnifierHQ/unifier/releases/tag/{version}'
                     )
                 )
@@ -256,8 +258,8 @@ class EmergencyUpgrader(commands.Cog):
                     selected = int(interaction.data['values'][0])
             self.logger.info('Upgrade confirmed, preparing...')
             if not no_backup:
-                embed.title = f'{self.bot.ui_emojis.install} {selector.get("backup_title")}'
-                embed.description = selector.get("backup_body")
+                embed.title = f'{self.bot.ui_emojis.install} Backing up...'
+                embed.description = 'Your data is being backed up.'
                 await interaction.response.edit_message(embed=embed, view=None)
             try:
                 if no_backup:
@@ -272,82 +274,35 @@ class EmergencyUpgrader(commands.Cog):
                     os.mkdir(folder)
                 except:
                     pass
-                folder = os.getcwd() + '/old/utils'
-                try:
-                    os.mkdir(folder)
-                except:
-                    pass
-                folder = os.getcwd() + '/old/languages'
-                try:
-                    os.mkdir(folder)
-                except:
-                    pass
-                folder = os.getcwd() + '/old/plugins'
-                try:
-                    os.mkdir(folder)
-                except:
-                    pass
-                folder = os.getcwd() + '/old/boot'
-                try:
-                    os.mkdir(folder)
-                except:
-                    pass
                 for file in os.listdir(os.getcwd() + '/cogs'):
                     self.logger.debug('Backing up: ' + os.getcwd() + '/cogs/' + file)
-                    try:
-                        await self.copy('cogs/' + file, 'old/cogs/' + file)
-                    except IsADirectoryError:
-                        continue
-                for file in os.listdir(os.getcwd() + '/utils'):
-                    self.logger.debug('Backing up: ' + os.getcwd() + '/utils/' + file)
-                    try:
-                        await self.copy('utils/' + file, 'old/utils/' + file)
-                    except IsADirectoryError:
-                        continue
-                for file in os.listdir(os.getcwd() + '/plugins'):
-                    self.logger.debug('Backing up: ' + os.getcwd() + '/plugins/' + file)
-                    try:
-                        await self.copy('plugins/' + file, 'old/plugins/' + file)
-                    except IsADirectoryError:
-                        continue
-                for file in os.listdir(os.getcwd() + '/languages'):
-                    self.logger.debug('Backing up: ' + os.getcwd() + '/languages/' + file)
-                    try:
-                        await self.copy('languages/' + file, 'old/languages/' + file)
-                    except IsADirectoryError:
-                        continue
-                for file in os.listdir(os.getcwd() + '/boot'):
-                    self.logger.debug('Backing up: ' + os.getcwd() + '/boot/' + file)
-                    try:
-                        await self.copy('boot/' + file, 'old/boot/' + file)
-                    except IsADirectoryError:
-                        continue
+                    os.system('cp ' + os.getcwd() + '/cogs/' + file + ' ' + os.getcwd() + '/old/cogs/' + file)
                 self.logger.debug('Backing up: ' + os.getcwd() + '/unifier.py')
-                await self.copy('unifier.py', 'old/unifier.py')
+                os.system('cp ' + os.getcwd() + '/unifier.py ' + os.getcwd() + '/old/unifier.py')
                 self.logger.debug('Backing up: ' + os.getcwd() + '/data.json')
-                await self.copy('data.json', 'old/data.json')
-                self.logger.debug('Backing up: ' + os.getcwd() + '/config.toml')
-                await self.copy('config.toml', 'old/config.toml')
-                self.logger.debug('Backing up: ' + os.getcwd() + '/boot_config.json')
-                await self.copy('boot_config.json', 'old/boot_config.json')
+                os.system('cp ' + os.getcwd() + '/data.json ' + os.getcwd() + '/old/data.json')
+                self.logger.debug('Backing up: ' + os.getcwd() + '/config.json')
+                os.system('cp ' + os.getcwd() + '/config.json ' + os.getcwd() + '/old/config.json')
+                self.logger.debug('Backing up: ' + os.getcwd() + '/update.json')
+                os.system('cp ' + os.getcwd() + '/update.json ' + os.getcwd() + '/old/update.json')
             except:
                 if no_backup:
                     self.logger.warning('Backup skipped, requesting final confirmation.')
-                    embed.description = f'- :x: {selector.get("skipped_backup")}\n- :wrench: {selector.get("modification_wipe")}\n- :warning: {selector.get("no_abort")}'
+                    embed.description = '- :x: Your files have **NOT BEEN BACKED UP**! Data loss or system failures may occur if the upgrade fails!\n- :wrench: Any modifications you made to Unifier will be wiped, unless they are a part of the new upgrade.\n- :warning: Once started, you cannot abort the upgrade.'
                 elif ignore_backup:
                     self.logger.warning('Backup failed, continuing anyways')
-                    embed.description = f'- :x: {selector.get("failed_backup")}\n- :wrench: {selector.get("modification_wipe")}\n- :warning: {selector.get("no_abort")}'
+                    embed.description = '- :x: Your files **COULD NOT BE BACKED UP**! Data loss or system failures may occur if the upgrade fails!\n- :wrench: Any modifications you made to Unifier will be wiped, unless they are a part of the new upgrade.\n- :warning: Once started, you cannot abort the upgrade.'
                 else:
                     self.logger.error('Backup failed, abort upgrade.')
-                    embed.title = f'{self.bot.ui_emojis.error} {selector.get("backupfail_title")}'
-                    embed.description = selector.get("backupfail_body")
+                    embed.title = f'{self.bot.ui_emojis.error} Backup failed'
+                    embed.description = 'Unifier could not create a backup. The upgrade has been aborted.'
                     embed.colour = self.bot.colors.error
                     await msg.edit(embed=embed)
                     raise
             else:
                 self.logger.info('Backup complete, requesting final confirmation.')
-                embed.description = f'- :inbox_tray: {selector.get("normal_backup")}\n- :wrench: {selector.get("modification_wipe")}\n- :warning: {selector.get("no_abort")}'
-            embed.title = f'{self.bot.ui_emojis.install} {selector.get("start")}'
+                embed.description = '- :inbox_tray: Your files have been backed up to `[Unifier root directory]/old.`\n- :wrench: Any modifications you made to Unifier will be wiped, unless they are a part of the new upgrade.\n- :warning: Once started, you cannot abort the upgrade.'
+            embed.title = f'{self.bot.ui_emojis.install} Start the upgrade?'
             components = ui.MessageComponents()
             components.add_row(btns)
             if no_backup:
@@ -369,17 +324,17 @@ class EmergencyUpgrader(commands.Cog):
                 components.add_row(btns)
                 return await interaction.response.edit_message(view=components)
             self.logger.debug('Upgrade confirmed, beginning upgrade')
-            embed.title = f'{self.bot.ui_emojis.install} {selector.get("upgrading")}'
-            embed.description = f':hourglass_flowing_sand: {selector.get("downloading")}\n:x: {selector.get("installing")}\n:x: {selector.get("reloading")}'
+            embed.title = f'{self.bot.ui_emojis.install} Upgrading Unifier'
+            embed.description = ':hourglass_flowing_sand: Downloading updates\n:x: Installing updates\n:x: Reloading modules'
             await interaction.response.edit_message(embed=embed, view=None)
             self.logger.info('Starting upgrade')
             try:
                 self.logger.debug('Purging old update files')
-                await self.bot.loop.run_in_executor(None, lambda: shutil.rmtree('update'))
+                os.system('rm -rf ' + os.getcwd() + '/update')
                 self.logger.info('Downloading from remote repository...')
                 await self.bot.loop.run_in_executor(None, lambda: os.system(
                     'git clone --branch ' + version + ' --single-branch --depth 1 ' + self.bot.config[
-                        'files_endpoint'] + '/unifier.git update'
+                        'files_endpoint'] + '/unifier.git ' + os.getcwd() + '/update'
                 ))
                 self.logger.debug('Confirming download...')
                 x = open(os.getcwd() + '/update/plugins/system.json', 'r')
@@ -387,35 +342,20 @@ class EmergencyUpgrader(commands.Cog):
                 self.logger.debug('Download confirmed, proceeding with upgrade')
             except:
                 self.logger.exception('Download failed, no rollback required')
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("failed")}'
-                embed.description = selector.get("download_fail")
+                embed.title = f'{self.bot.ui_emojis.error} Upgrade failed'
+                embed.description = 'Could not download updates. No rollback is required.'
                 embed.colour = self.bot.colors.error
                 await msg.edit(embed=embed)
                 return
             try:
                 self.logger.debug('Installing dependencies')
-
-                with open('.install.json') as file:
-                    install_data = json.load(file)
-
-                if install_data == 'stable':
-                    x = open('update/requirements_stable.txt')
-                    newdeps = x.read().split('\n')
-                    x.close()
-                else:
-                    x = open('update/requirements.txt')
-                    newdeps = x.read().split('\n')
-                    x.close()
-
+                x = open('update/requirements.txt')
+                newdeps = x.read().split('\n')
+                x.close()
                 try:
-                    if install_data == 'stable':
-                        x = open('requirements_stable.txt')
-                        olddeps = x.read().split('\n')
-                        x.close()
-                    else:
-                        x = open('requirements.txt')
-                        olddeps = x.read().split('\n')
-                        x.close()
+                    x = open('requirements.txt')
+                    olddeps = x.read().split('\n')
+                    x.close()
                 except:
                     self.logger.warning('Could not find requirements.txt, installing all dependencies')
                     olddeps = []
@@ -426,169 +366,133 @@ class EmergencyUpgrader(commands.Cog):
                         pass
                 if len(newdeps) > 0:
                     self.logger.debug('Installing: ' + ' '.join(newdeps))
-                    bootloader_config = self.bot.boot_config.get('bootloader', {})
-                    if sys.platform == 'win32':
-                        binary = bootloader_config.get('binary', 'py -3')
-                        await self.bot.loop.run_in_executor(None, lambda: status(
-                            os.system(f'{binary} -m pip install -U ' + '"' + '" "'.join(newdeps) + '"')
-                        ))
-                    else:
-                        binary = bootloader_config.get('binary', 'python3')
-                        await self.bot.loop.run_in_executor(None, lambda: status(
-                            os.system(f'{binary} -m pip install -U ' + '"' + '" "'.join(newdeps) + '"')
-                        ))
+                    await self.bot.loop.run_in_executor(None, lambda: status(os.system(
+                        'python3 -m pip install ' + '"' + '" "'.join(newdeps) + '"')
+                    ))
             except:
                 self.logger.exception('Dependency installation failed, no rollback required')
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("failed")}'
-                embed.description = selector.get("dependency_fail")
+                embed.title = f'{self.bot.ui_emojis.error} Upgrade failed'
+                embed.description = 'Could not install dependencies. No rollback is required.'
                 embed.colour = self.bot.colors.error
                 await msg.edit(embed=embed)
                 return
             try:
                 self.logger.info('Installing upgrades')
-                embed.description = f':white_check_mark: {selector.get("downloading")}\n:hourglass_flowing_sand: {selector.get("installing")}\n:x: {selector.get("reloading")}'
+                embed.description = ':white_check_mark: Downloading updates\n:hourglass_flowing_sand: Installing updates\n:x: Reloading modules'
                 await msg.edit(embed=embed)
                 self.logger.debug('Installing: ' + os.getcwd() + '/update/unifier.py')
-                await self.copy('update/unifier.py', 'unifier.py')
+                status(os.system('cp ' + os.getcwd() + '/update/unifier.py ' + os.getcwd() + '/unifier.py'))
                 self.logger.debug('Installing: ' + os.getcwd() + '/update/requirements.txt')
-                await self.copy('update/requirements.txt', 'requirements.txt')
-                self.logger.debug('Installing: ' + os.getcwd() + '/update/requirements_stable.txt')
-                await self.copy('update/requirements_stable.txt', 'requirements_stable.txt')
-                self.logger.debug('Installing: ' + os.getcwd() + '/update_check/plugins/system.json')
+                status(os.system('cp ' + os.getcwd() + '/update/requirements.txt ' + os.getcwd() + '/requirements.txt'))
+                self.logger.debug('Installing: ' + os.getcwd() + '/update_check/update.json')
                 if legacy:
                     current['version'] = version
                     current['legacy'] = release
                     with open('plugins/system.json', 'w+') as file:
                         json.dump(current,file)
                 else:
-                    await self.copy('update/plugins/system.json', 'plugins/system.json')
+                    status(os.system('cp ' + os.getcwd() + '/update_check/update.json ' + os.getcwd() + '/plugins/system.json'))
+                    with open('plugins/system.json', 'r') as file:
+                        newcurrent = json.load(file)
+                    newcurrent.pop('legacy')
+                    with open('plugins/system.json', 'w+') as file:
+                        json.dump(newcurrent, file)
                 for file in os.listdir(os.getcwd() + '/update/cogs'):
                     self.logger.debug('Installing: ' + os.getcwd() + '/update/cogs/' + file)
-                    await self.copy('update/cogs/' + file, 'cogs/' + file)
+                    status(
+                        os.system('cp ' + os.getcwd() + '/update/cogs/' + file + ' ' + os.getcwd() + '/cogs/' + file))
                 for file in os.listdir(os.getcwd() + '/update/utils'):
                     self.logger.debug('Installing: ' + os.getcwd() + '/update/utils/' + file)
-                    await self.copy('update/utils/' + file, 'utils/' + file)
-                self.logger.debug('Installing: ' + os.getcwd() + '/update/emojis/base.json')
-                await self.copy('update/emojis/base.json', 'emojis/base.json')
-                self.logger.debug('Updating languages')
-                for file in os.listdir(os.getcwd() + '/update/languages'):
-                    if not file.endswith('.json'):
-                        continue
-
-                    self.logger.debug('Installing: ' + os.getcwd() + '/update/languages/' + file)
-                    await self.copy('update/languages/' + file, 'languages/' + file)
-                for file in os.listdir(os.getcwd() + '/update/utils'):
-                    self.logger.debug('Installing: ' + os.getcwd() + '/update/utils/' + file)
-                    await self.copy('update/utils/' + file, 'utils/' + file)
-                self.logger.debug('Updating config.toml')
-                with open('config.toml','rb') as file:
-                    oldcfg = tomli.load(file)
-                with open('update/config.toml', 'rb') as file:
-                    newcfg = tomli.load(file)
-
-                newdata = {}
-
-                for key in oldcfg:
-                    if type(oldcfg[key]) is dict:
-                        for newkey in oldcfg[key]:
-                            newdata.update({newkey: oldcfg[key][newkey]})
-                    else:
-                        newdata.update({key: oldcfg[key]})
-
-                oldcfg = newdata
-
-                def update_toml(old, new):
-                    for key in new:
-                        for newkey in new[key]:
-                            if newkey in old.keys():
-                                new[key].update({newkey: old[newkey]})
-                    return new
-
-                oldcfg = update_toml(oldcfg, newcfg)
-
-                with open('config.toml', 'wb+') as file:
-                    tomli_w.dump(oldcfg, file)
+                    status(
+                        os.system('cp ' + os.getcwd() + '/update/utils/' + file + ' ' + os.getcwd() + '/utils/' + file))
+                self.logger.debug('Updating config.json')
+                with open('config.json', 'r') as file:
+                    oldcfg = json.load(file)
+                with open('update/config.json', 'r') as file:
+                    newcfg = json.load(file)
+                for key in newcfg:
+                    if not key in list(oldcfg.keys()):
+                        oldcfg.update({key: newcfg[key]})
+                with open('config.json', 'w') as file:
+                    json.dump(oldcfg, file, indent=4)
                 if should_reboot:
                     self.bot.update = True
                     self.logger.info('Upgrade complete, reboot required')
-                    embed.title = f'{self.bot.ui_emojis.success} {selector.get("restart_title")}'
-                    embed.description =selector.get("restart_body")
+                    embed.title = f'{self.bot.ui_emojis.success} Restart to apply upgrade'
+                    embed.description = f'The upgrade was successful. Please reboot the bot.'
                     embed.colour = self.bot.colors.success
                     await msg.edit(embed=embed)
                 else:
-                    self.logger.info('Reloading extensions')
-                    f':white_check_mark: {selector.get("downloading")}\n:white_check_mark: {selector.get("installing")}\n:hourglass_flowing_sand: {selector.get("reloading")}'
+                    self.logger.info('Restarting extensions')
+                    embed.description = ':white_check_mark: Downloading updates\n:white_check_mark: Installing updates\n:hourglass_flowing_sand: Reloading modules'
                     await msg.edit(embed=embed)
                     for cog in list(self.bot.extensions):
-                        self.logger.debug('Reloading extension: ' + cog)
-                        try:
-                            await self.preunload(cog)
-                            self.bot.reload_extension(cog)
-                        except:
-                            self.logger.warning(cog+' could not be reloaded.')
-                            embed.set_footer(text=':warning: Some extensions could not be reloaded.')
+                        self.logger.debug('Restarting extension: ' + cog)
+                        await self.preunload(cog)
+                        self.bot.reload_extension(cog)
                     self.logger.info('Upgrade complete')
-                    embed.title = f'{self.bot.ui_emojis.success} {selector.get("success_title")}'
-                    embed.description = selector.get("success_body")
+                    embed.title = f'{self.bot.ui_emojis.success} Upgrade successful'
+                    embed.description = 'The upgrade was successful! :partying_face:'
                     embed.colour = self.bot.colors.success
                     await msg.edit(embed=embed)
             except:
                 self.logger.exception('Upgrade failed, attempting rollback')
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("failed")}'
+                embed.title = f'{self.bot.ui_emojis.error} Upgrade failed'
                 embed.colour = self.bot.colors.error
                 try:
                     self.logger.debug('Reverting: ' + os.getcwd() + '/unifier.py')
-                    await self.copy('old/unifier.py', 'unifier.py')
+                    status(os.system('cp ' + os.getcwd() + '/old/unifier.py ' + os.getcwd() + '/unifier.py'))
                     self.logger.debug('Reverting: ' + os.getcwd() + '/data.json')
-                    await self.copy('old/data.json', 'data.json')
+                    status(os.system('cp ' + os.getcwd() + '/old/data.json ' + os.getcwd() + '/data.json'))
                     self.logger.debug('Reverting: ' + os.getcwd() + '/plugins/system.json')
-                    await self.copy('old/plugins/system.json', 'plugins/system.json')
-                    self.logger.debug('Reverting: ' + os.getcwd() + '/config.toml')
-                    await self.copy('old/config.toml', 'config.toml')
+                    status(os.system('cp ' + os.getcwd() + '/old/plugins/system.json ' + os.getcwd() + '/plugins/system.json'))
+                    self.logger.debug('Reverting: ' + os.getcwd() + '/config.json')
+                    status(os.system('cp ' + os.getcwd() + '/old/config.json ' + os.getcwd() + '/config.json'))
                     for file in os.listdir(os.getcwd() + '/old/cogs'):
                         self.logger.debug('Reverting: ' + os.getcwd() + '/cogs/' + file)
-                        await self.copy('old/cogs/' + file, 'cogs/' + file)
+                        status(
+                            os.system('cp ' + os.getcwd() + '/old/cogs/' + file + ' ' + os.getcwd() + '/cogs/' + file))
                     self.logger.info('Rollback success')
-                    embed.description = selector.get("rollback")
+                    embed.description = 'The upgrade failed, and all files have been rolled back.'
                 except:
                     self.logger.exception('Rollback failed')
                     self.logger.critical(
                         'The rollback failed. Visit https://unichat-wiki.pixels.onl/setup-selfhosted/upgrading-unifier/manual-rollback for recovery steps.')
-                    embed.description = selector.get("rollback_fail")
+                    embed.description = 'The upgrade failed, and the bot may now be in a crippled state.\nPlease check console logs for more info.'
                 await msg.edit(embed=embed)
                 return
         else:
-            embed = nextcord.Embed(title=f'{self.bot.ui_emojis.install} {selector.rawget("downloading_title","sysmgr.install")}', description=selector.rawget("downloading_body",'sysmgr.install'))
+            embed = nextcord.Embed(title=f'{self.bot.ui_emojis.install} Downloading extension...', description='Getting extension files from remote')
 
             try:
                 with open('plugins/'+plugin+'.json') as file:
                     plugin_info = json.load(file)
             except:
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("notfound_title")}'
-                embed.description = selector.get("notfound_body")
+                embed.title = f'{self.bot.ui_emojis.error} Plugin not found'
+                embed.description = 'The plugin could not be found.'
                 if plugin=='force':
-                    embed.description = embed.description + '\n' + selector.fget('hint_force',values={'prefix':self.bot.command_prefix})
+                    embed.description = embed.description + f'\n\n**Hint**: If you\'re trying to force upgrade, run `{self.bot.command_prefix}upgrade system force`'
                 embed.colour = self.bot.colors.error
                 await ctx.send(embed=embed)
                 return
-            embed.set_footer(text=selector.rawget("trust",'sysmgr.install'))
+            embed.set_footer(text='Only install plugins from trusted sources!')
             msg = await ctx.send(embed=embed)
             url = plugin_info['repository']
             try:
-                await self.bot.loop.run_in_executor(None, lambda: shutil.rmtree('plugin_install'))
+                os.system('rm -rf ' + os.getcwd() + '/plugin_install')
                 await self.bot.loop.run_in_executor(None, lambda: status(os.system(
-                    'git clone ' + url + ' plugin_install')))
+                    'git clone ' + url + ' ' + os.getcwd() + '/plugin_install')))
                 with open('plugin_install/plugin.json', 'r') as file:
                     new = json.load(file)
                 if not bool(re.match("^[a-z0-9_-]*$", new['id'])):
-                    embed.title = f'{self.bot.ui_emojis.error} {selector.rawget("alphanumeric_title","sysmgr.install")}'
-                    embed.description = selector.rawget("alphanumeric_body",'sysmgr.install')
+                    embed.title = f'{self.bot.ui_emojis.error} Invalid plugin.json file'
+                    embed.description = 'Plugin IDs must be alphanumeric and may only contain lowercase letters, numbers, dashes, and underscores.'
                     embed.colour = self.bot.colors.error
                     await msg.edit(embed=embed)
                     return
                 if new['release'] <= plugin_info['release'] and not force:
-                    embed.title = f'{self.bot.ui_emojis.success} {selector.get("pnoupdates_title")}'
-                    embed.description = selector.get("pnoupdates_body")
+                    embed.title = f'{self.bot.ui_emojis.success} Plugin up to date'
+                    embed.description = f'This plugin is already up to date!'
                     embed.colour = self.bot.colors.success
                     await msg.edit(embed=embed)
                     return
@@ -600,17 +504,17 @@ class EmergencyUpgrader(commands.Cog):
                 utilities = new['utils']
                 services = new['services'] if 'services' in new.keys() else []
             except:
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("pfailed")}'
-                embed.description = selector.rawget("invalid_repo",'sysmgr.install')
+                embed.title = f'{self.bot.ui_emojis.error} Failed to update plugin'
+                embed.description = 'The repository URL or the plugin.json file is invalid.'
                 embed.colour = self.bot.colors.error
                 await msg.edit(embed=embed)
                 raise
-            embed.title = f'{self.bot.ui_emojis.install} {selector.fget("question",values={"plugin":plugin_id})}'
-            embed.description = selector.rawfget('plugin_info','sysmgr.install',values={'name':name,'version':version,'desc':desc})
+            embed.title = f'{self.bot.ui_emojis.install} Update `{plugin_id}`?'
+            embed.description = f'Name: `{name}`\nVersion: `{version}`\n\n{desc}'
             embed.colour = 0xffcc00
             btns = ui.ActionRow(
-                nextcord.ui.Button(style=nextcord.ButtonStyle.green, label=selector.get("upgrade"), custom_id=f'accept', disabled=False),
-                nextcord.ui.Button(style=nextcord.ButtonStyle.gray, label=selector.rawfget("nevermind","sysmgr.install"), custom_id=f'reject', disabled=False)
+                nextcord.ui.Button(style=nextcord.ButtonStyle.green, label='Update', custom_id=f'accept', disabled=False),
+                nextcord.ui.Button(style=nextcord.ButtonStyle.gray, label='Nevermind', custom_id=f'reject', disabled=False)
             )
             components = ui.MessageComponents()
             components.add_row(btns)
@@ -649,27 +553,21 @@ class EmergencyUpgrader(commands.Cog):
                                 newdeps.remove(dep)
                         if len(newdeps) > 0:
                             self.logger.debug('Installing: ' + ' '.join(newdeps))
-                            bootloader_config = self.bot.boot_config.get('bootloader', {})
-                            if sys.platform == 'win32':
-                                binary = bootloader_config.get('binary', 'py -3')
-                                await self.bot.loop.run_in_executor(None, lambda: status(
-                                    os.system(f'{binary} -m pip install --no-dependencies -U ' + '"' + '" "'.join(newdeps) + '"')
-                                ))
-                            else:
-                                binary = bootloader_config.get('binary', 'python3')
-                                await self.bot.loop.run_in_executor(None, lambda: status(
-                                    os.system(f'{binary} -m pip install --no-dependencies -U ' + '"' + '" "'.join(newdeps) + '"')
-                                ))
+                            await self.bot.loop.run_in_executor(None, lambda: status(
+                                os.system('python3 -m pip install --no-dependencies ' + '"' + '" "'.join(newdeps) + '"')
+                            ))
                 except:
                     self.logger.exception('Dependency installation failed')
                     raise RuntimeError()
                 self.logger.info('Upgrading Plugin')
                 for module in modules:
                     self.logger.debug('Installing: ' + os.getcwd() + '/plugin_install/' + module)
-                    await self.copy('plugin_install/' + module, 'cogs/' + module)
+                    status(os.system(
+                        'cp ' + os.getcwd() + '/plugin_install/' + module + ' ' + os.getcwd() + '/cogs/' + module))
                 for util in utilities:
                     self.logger.debug('Installing: ' + os.getcwd() + '/plugin_install/' + util)
-                    await self.copy('plugin_install/' + util, 'utils/' + util)
+                    status(os.system(
+                        'cp ' + os.getcwd() + '/plugin_install/' + util + ' ' + os.getcwd() + '/utils/' + util))
                 if 'emojis' in services:
                     self.logger.info('Uninstalling previous Emoji Pack')
                     home_guild = self.bot.get_guild(self.bot.config['home_guild'])
@@ -719,48 +617,10 @@ class EmergencyUpgrader(commands.Cog):
                         with open(f'emojis/current.json', 'w+') as file:
                             json.dump(emojipack, file, indent=2)
                         self.bot.ui_emojis = Emojis(data=emojipack)
-
-                if not os.path.exists('plugin_config'):
-                    os.mkdir('plugin_config')
-
-                if 'config.toml' in os.listdir('plugin_install'):
-                    if f'{plugin_id}.toml' in os.listdir('plugin_config'):
-                        self.logger.debug('Updating config.toml')
-                        with open(f'plugin_config/{plugin_id}.toml', 'rb') as file:
-                            oldcfg = tomli.load(file)
-                        with open('plugin_install/config.toml', 'rb') as file:
-                            newcfg = tomli.load(file)
-
-                        newdata = {}
-
-                        for key in oldcfg:
-                            if type(oldcfg[key]) is dict:
-                                for newkey in oldcfg[key]:
-                                    newdata.update({newkey: oldcfg[key][newkey]})
-                            else:
-                                newdata.update({key: oldcfg[key]})
-
-                        oldcfg = newdata
-
-                        def update_toml(old, new):
-                            for key in new:
-                                for newkey in new[key]:
-                                    if newkey in old.keys():
-                                        new[key].update({newkey: old[newkey]})
-                            return new
-
-                        oldcfg = update_toml(oldcfg, newcfg)
-
-                        with open(f'plugin_config/{plugin_id}.toml', 'wb+') as file:
-                            tomli_w.dump(oldcfg, file)
-                    else:
-                        self.logger.debug('Installing config.toml')
-                        if not os.path.exists('plugin_config'):
-                            os.mkdir('plugin_config')
-                        await self.copy('plugin_install/config.toml', 'plugin_config/' + plugin_id + '.toml')
-
                 self.logger.info('Registering plugin')
-                await self.copy('plugin_install/plugin.json', 'plugins/' + plugin_id + '.json')
+                status(
+                    os.system(
+                        'cp ' + os.getcwd() + '/plugin_install/plugin.json' + ' ' + os.getcwd() + '/plugins/' + plugin_id + '.json'))
                 with open('plugins/' + plugin_id + '.json') as file:
                     plugin_info = json.load(file)
                     plugin_info.update({'repository': url})
@@ -771,25 +631,17 @@ class EmergencyUpgrader(commands.Cog):
                     modname = 'cogs.' + module[:-3]
                     if modname in list(self.bot.extensions):
                         self.logger.debug('Reloading extension: ' + modname)
-                        try:
-                            await self.preunload(modname)
-                            self.bot.reload_extension(modname)
-                        except:
-                            self.logger.warning(modname+' could not be reloaded.')
-                            embed.set_footer(text=':warning: Some extensions could not be reloaded.')
+                        await self.preunload(modname)
+                        self.bot.reload_extension(modname)
                 self.logger.debug('Upgrade complete')
-                embed.title = f'{self.bot.ui_emojis.success} {selector.get("success_title")}'
-                embed.description = selector.get("success_body")
-
-                if 'bridge_platform' in plugin_info['services']:
-                    embed.description = embed.description + '\n' + selector.get('success_rpossible')
-
+                embed.title = f'{self.bot.ui_emojis.success} Upgrade successful'
+                embed.description = 'The upgrade was successful! :partying_face:'
                 embed.colour = self.bot.colors.success
                 await msg.edit(embed=embed)
             except:
                 self.logger.exception('Upgrade failed')
-                embed.title = f'{self.bot.ui_emojis.error} {selector.get("failed")}'
-                embed.description = selector.get("plugin_fail")
+                embed.title = f'{self.bot.ui_emojis.error} Upgrade failed'
+                embed.description = 'The upgrade failed.'
                 embed.colour = self.bot.colors.error
                 await msg.edit(embed=embed)
                 return
