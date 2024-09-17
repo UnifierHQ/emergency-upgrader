@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import nextcord
 from nextcord.ext import commands
-from utils import ui, restrictions as r, log
+from utils import ui, log
 import json
 import os
 import sys
@@ -27,9 +27,6 @@ import tomli
 import tomli_w
 import shutil
 import importlib
-
-restrictions = r.Restrictions()
-language.load()
 
 class Emojis:
     def __init__(self, data=None, devmode=False):
@@ -72,8 +69,6 @@ class EmergencyUpgrader(commands.Cog):
         self.bot = bot
         self.logger = log.buildlogger(self.bot.package, 'eupgrader', self.bot.loglevel)
 
-        restrictions.attach_bot(self.bot)
-
     async def copy(self, src, dst):
         await self.bot.loop.run_in_executor(None, lambda: shutil.copy2(src, dst))
 
@@ -113,7 +108,6 @@ class EmergencyUpgrader(commands.Cog):
         await script.check(self.bot)
 
     @commands.command(hidden=True,description='Upgrades Unifier or a plugin.')
-    @restrictions.owner()
     async def emergency_upgrade(self, ctx, plugin='system', *, args=''):
         if not ctx.author.id == self.bot.config['owner']:
             return
