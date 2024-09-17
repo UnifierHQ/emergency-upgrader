@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import nextcord
 from nextcord.ext import commands
-from utils import ui, langmgr, restrictions as r, log
+from utils import ui, restrictions as r, log
 import json
 import os
 import sys
@@ -29,7 +29,6 @@ import shutil
 import importlib
 
 restrictions = r.Restrictions()
-language = langmgr.partial()
 language.load()
 
 class Emojis:
@@ -74,7 +73,6 @@ class EmergencyUpgrader(commands.Cog):
         self.logger = log.buildlogger(self.bot.package, 'eupgrader', self.bot.loglevel)
 
         restrictions.attach_bot(self.bot)
-        language = self.bot.langmgr
 
     async def copy(self, src, dst):
         await self.bot.loop.run_in_executor(None, lambda: shutil.copy2(src, dst))
